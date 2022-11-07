@@ -17,30 +17,28 @@ import visdom
 import numpy as np
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
-from moviepy.editor import ImageSequenceClip
+# from moviepy.editor import ImageSequenceClip
 
+# def gif(filename, array, fps=10, scale=1.0):
+#     """Creates a gif given a stack of images using moviepy
+#     Usage
+#     -----
+#     >>> X = randn(100, 64, 64)
+#     >>> gif('test.gif', X)
+#     """
 
+#     # ensure that the file has the .gif extension
+#     fname, _ = os.path.splitext(filename)
+#     filename = fname + '.gif'
 
-def gif(filename, array, fps=10, scale=1.0):
-    """Creates a gif given a stack of images using moviepy
-    Usage
-    -----
-    >>> X = randn(100, 64, 64)
-    >>> gif('test.gif', X)
-    """
+#     # copy into the color dimension if the images are black and white
+#     if array.ndim == 3:
+#         array = array[..., np.newaxis] * np.ones(3)
 
-    # ensure that the file has the .gif extension
-    fname, _ = os.path.splitext(filename)
-    filename = fname + '.gif'
-
-    # copy into the color dimension if the images are black and white
-    if array.ndim == 3:
-        array = array[..., np.newaxis] * np.ones(3)
-
-    # make the moviepy clip
-    clip = ImageSequenceClip(list(array), fps=fps).resize(scale)
-    clip.write_gif(filename, fps=fps)
-    return clip
+#     # make the moviepy clip
+#     clip = ImageSequenceClip(list(array), fps=fps).resize(scale)
+#     clip.write_gif(filename, fps=fps)
+#     return clip
 
 
 def latent_walks(model, zs, h, N, K):
@@ -60,7 +58,7 @@ def latent_walks(model, zs, h, N, K):
                 zs_delta = zs.clone().view(batch_size, 1, z_dim)
                 zs_delta[k, :, i] = 0
                 zs_walk = zs_delta + vec
-                zs_walk= torch.squeeze(zs_walk).permute(1,0,2).contiguous() 
+                zs_walk= torch.squeeze(zs_walk).permute(1,0,2).contiguous()
 
                 vec_2 = Variable(torch.zeros(h_dim)).view(1, h_dim).expand(batch_size, 7, h_dim).contiguous().type_as(h)
                 vec_2[k, :, i] = 1
@@ -68,7 +66,7 @@ def latent_walks(model, zs, h, N, K):
                 h_delta = h.clone().view(batch_size, 1, h_dim)
                 h_delta[k, :, i] = 0
                 h_walk = h_delta + vec_2
-                h_walk= h_walk.permute(1,0,2).contiguous() 
+                h_walk= h_walk.permute(1,0,2).contiguous()
 
                 dec_out = model(zs_walk.view(-1, z_dim), h_walk.view(-1, h_dim))
                 xs_walk, masks_walk = dec_out[:,:3,:,:], dec_out[:,3,:,:]
@@ -164,8 +162,8 @@ def adjusted_rand_index_without_bg(groups, gammas):
     expected_rindex = aindex * bindex / (n*(n-1))
     max_rindex = (aindex + bindex) / 2
     ARI = (rindex - expected_rindex)/(max_rindex - expected_rindex)
-    ## If have some nan values then replace then with 1.0. This happens whenether 
-    #  ther is one object on the image and it was correctly classified in every pixel. 
+    ## If have some nan values then replace then with 1.0. This happens whenether
+    #  ther is one object on the image and it was correctly classified in every pixel.
     ARI[ARI!=ARI] = 1.0
     mean_ARI = torch.mean(ARI)
     del yshape, Y, gshape, G, M, n, DM, YM, nij, a, b, rindex, bindex, expected_rindex, max_rindex, ARI

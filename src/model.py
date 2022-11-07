@@ -7,7 +7,7 @@
 #
 
 ####################################################################################
-# Code is based on the IODINE (https://arxiv.org/pdf/1903.00450.pdf) implementation 
+# Code is based on the IODINE (https://arxiv.org/pdf/1903.00450.pdf) implementation
 # from https://github.com/MichaelKevinKelly/IODINE by Michael Kelly
 ####################################################################################
 
@@ -16,7 +16,6 @@ import math
 import os
 import numpy as np
 from .utils.util import adjusted_rand_index, adjusted_rand_index_without_bg
-
 
 class Model(torch.nn.Module):
 
@@ -50,11 +49,11 @@ class Model(torch.nn.Module):
 		self.decoder = decoder
 		self.refine_net = refine_net
 		self.layer_norms = torch.nn.ModuleList([
-			torch.nn.LayerNorm((1,64,64),elementwise_affine=False),
-			torch.nn.LayerNorm((3,64,64),elementwise_affine=False),
-			torch.nn.LayerNorm((1,64,64),elementwise_affine=False),
+			torch.nn.LayerNorm((1,128,128),elementwise_affine=False),
+			torch.nn.LayerNorm((3,128,128),elementwise_affine=False),
+			torch.nn.LayerNorm((1,128,128),elementwise_affine=False),
 			torch.nn.LayerNorm((2*z_dim,),elementwise_affine=False),
-			torch.nn.LayerNorm((1,64,64),elementwise_affine=False)])
+			torch.nn.LayerNorm((1,128,128),elementwise_affine=False)])
 
 
 		self.feature_extractor = torch.nn.Sequential(
@@ -63,7 +62,7 @@ class Model(torch.nn.Module):
 			torch.nn.ELU(),
 			torch.nn.Conv2d(64,32,3,stride=1,padding=1),
 			torch.nn.ELU(),
-			torch.nn.Conv2d(32,16,3,stride=1,padding=1),
+			torch.nn.ConvTranspose2d(32,16,3,stride=2,padding=1,output_padding=1),
 			torch.nn.ELU())
 		for param in self.feature_extractor[0]:
 			param.requires_grad = False
@@ -85,13 +84,13 @@ class Model(torch.nn.Module):
 		self.register_buffer('h0',torch.zeros((1,128)))
 		self.register_buffer('base_loss',torch.zeros(1,1))
 		self._create_meshgrid()
-		self._setup_debug()
+		# self._setup_debug()
 
 	"""
 	Forward pass through the model.
 	Two loops traverse the grid of time and refinements. The outer loop iterates
 	along the frames and the inner along the iterative refinements.
-	Additionally after the inference is done, if number of predict_frames 
+	Additionally after the inference is done, if number of predict_frames
 	is not zero a new frames will be simulated.
 	"""
 	def forward(self, img, gt):
@@ -175,26 +174,26 @@ class Model(torch.nn.Module):
 				else:
 					loss = self.beta * nll + self.psi * div
 
-				## Accumulate loss 
+				## Accumulate loss
 				scaled_loss = ((float(it)+1)/float(T)) * loss
 				losses.append(scaled_loss)
 
 				total_loss += scaled_loss
-				
+
 				assert not torch.isnan(loss).any().item(), 'Loss at t={} is nan. (nll,div): ({},{},{})'.format(nll,div, flat_e)
 				if it==T-1: continue
 
 				## Refine lambda
 				if self.opt.additional_input:
 					refine_inp = self.get_refine_inputs(_x,mu_x,masks,mask_logits,ll_pxl,lmbda,loss,deviation, _x_hor)
-				else: 
+				else:
 					refine_inp = self.get_refine_inputs(_x,mu_x,masks,mask_logits,ll_pxl,lmbda,loss,deviation)
 
 				## Potentially add additional features from pretrained model (scaled down to appropriate size)
 				x_resized = torch.nn.functional.interpolate(x,257) ## Upscale to desired input size for squeezenet
 				additional_features = self.feature_extractor(x_resized).unsqueeze(dim=1)
-				additional_features = additional_features.expand((N,K,16,64,64)).contiguous()
-				additional_features = additional_features.view((N*K,16,64,64))
+				additional_features = additional_features.expand((N,K,16,128,128)).contiguous()
+				additional_features = additional_features.view((N*K,16,128,128))
 				refine_inp['img'] = torch.cat((refine_inp['img'],additional_features),dim=1)
 
 				delta, h_vert, c_vert = self.refine_net(refine_inp, h_hor, c_hor, h_vert, c_vert)
@@ -220,7 +219,7 @@ class Model(torch.nn.Module):
 
 				lmbda = lmbda_frames[f_predict]
 				h_vert = self.h0.expand((N*K,)+self.h0.shape[1:]).clone().detach() ##TODO
-				c_vert = torch.zeros_like(h_vert) 
+				c_vert = torch.zeros_like(h_vert)
 				prior_t = self.prior(h_hor)
 				prior_mean_t = self.prior_mean(prior_t)
 				prior_var_t = self.prior_var(prior_t)
@@ -256,7 +255,7 @@ class Model(torch.nn.Module):
 					div = self._get_div_gauss(mu_z, logvar_z, prior_mean_t, prior_var_t, N, K)
 				else:
 					div = self._get_div(mu_z,logvar_z,N,K)
-				
+
 				loss = self.beta * nll + self.psi * div
 
 
@@ -265,8 +264,8 @@ class Model(torch.nn.Module):
 				## Potentially add additional features from pretrained model (scaled down to appropriate size)
 				x_resized = torch.nn.functional.interpolate(x,257) ## Upscale to desired input size for squeezenet
 				additional_features = self.feature_extractor(x_resized).unsqueeze(dim=1)
-				additional_features = additional_features.expand((N,K,16,64,64)).contiguous()
-				additional_features = additional_features.view((N*K,16,64,64))
+				additional_features = additional_features.expand((N,K,16,128,128)).contiguous()
+				additional_features = additional_features.view((N*K,16,128,128))
 				refine_inp['img'] = torch.cat((refine_inp['img'],additional_features),dim=1)
 
 				delta, h_vert, c_vert = self.refine_net(refine_inp, h_hor, c_hor, h_vert, c_vert)
@@ -380,7 +379,7 @@ class Model(torch.nn.Module):
 	Generates coordinate channels inputs for refinemet network
 	"""
 	def _create_meshgrid(self):
-		H,W = (64,64)
+		H,W = (128,128)
 		x_range = torch.linspace(-1.,1.,W)
 		y_range = torch.linspace(-1.,1.,H)
 		x_grid, y_grid = torch.meshgrid([x_range,y_range])
@@ -391,20 +390,20 @@ class Model(torch.nn.Module):
 			self.register_buffer('x_grid_hor', x_grid_hor.view((1, 1, 1) + x_grid_hor.shape))
 			self.register_buffer('y_grid_hor', y_grid_hor.view((1, 1, 1) + y_grid_hor.shape))
 
-	"""
-	Enable post mortem debugging
-	"""
-	def _setup_debug(self):
-		import sys
-		old_hook = sys.excepthook
+	# """
+	# Enable post mortem debugging
+	# """
+	# def _setup_debug(self):
+	# 	import sys
+	# 	old_hook = sys.excepthook
 
-		def new_hook(typ, value, tb):
-			old_hook(typ, value, tb)
-			if typ != KeyboardInterrupt:
-				import ipdb
-				ipdb.post_mortem(tb)
+	# 	def new_hook(typ, value, tb):
+	# 		old_hook(typ, value, tb)
+	# 		if typ != KeyboardInterrupt:
+	# 			import ipdb
+	# 			ipdb.post_mortem(tb)
 
-		sys.excepthook = new_hook
+	# 	sys.excepthook = new_hook
 
 	"""
 	Checks if any of the model's weights are NaN

@@ -4,7 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
+import json
 from torch.utils.data import Dataset
 from skimage.transform import rescale, rotate
 import torchvision.transforms as transforms
@@ -12,6 +12,8 @@ from skimage import io
 import numpy as np
 import torch
 import os
+from pathlib import Path
+from PIL import Image
 
 """
 Pytorch dataset class for loading the CLEVRER sequences fof frames
@@ -36,7 +38,7 @@ class ClevrerDatasetMoreData(Dataset):
 
     def __getitem__(self,idx):
         folder = self.folders[idx // (128 // self.max_num_frames)]
-        start = (idx % (128 // self.max_num_frames)) * self.max_num_frames 
+        start = (idx % (128 // self.max_num_frames)) * self.max_num_frames
         all_frames = []
         for frame_idx in range(start, start + self.max_num_frames):
             imgname = str(folder) + "/" + str(frame_idx)
@@ -47,7 +49,7 @@ class ClevrerDatasetMoreData(Dataset):
         return torch.stack(all_frames,dim=0)
 
     def rescale_img(self,img):
-        H,W,C = img.shape  
+        H,W,C = img.shape
         dW = abs(W-self.crop_sz)//2
         crop = img[:,dW:-dW,:3]
         down = rescale(crop,self.down_scale, order = 3, mode='reflect', multichannel=True)
@@ -96,20 +98,20 @@ class ClevrerDataset(Dataset):
         return result
 
     def rescale_img(self,img, order = 3, anti_aliasing= True):
-        H,W,C = img.shape  
+        H,W,C = img.shape
         dW = abs(W-self.crop_sz)//2
         crop = img[:,dW:-dW,:3]
         down = rescale(crop,self.down_scale, order = order, mode="reflect", multichannel=True, anti_aliasing = anti_aliasing)
         return down
     def rescale_img_gt(self, img):
-        H,W,C = img.shape  
+        H,W,C = img.shape
         dW = abs(W-self.crop_sz)//2
         crop = img[:,dW:-dW,:3]
         crop = torch.tensor(crop ,dtype=torch.float32).permute((2,0,1))
         down = torch.nn.functional.interpolate(crop.unsqueeze(0), scale_factor = self.down_scale, mode='nearest')
         down = down.squeeze(0)
         return down
-        
+
 """
 Pytorch dataset class for loading pre-generated images from the Floating Balls dataset
 """
@@ -133,7 +135,7 @@ class FloatBallsVideoDatasetMoreData(Dataset):
 
     def __getitem__(self,idx):
         folder = idx // (51 // self.max_num_frames)
-        start = (idx % (51 // self.max_num_frames)) * self.max_num_frames 
+        start = (idx % (51 // self.max_num_frames)) * self.max_num_frames
         all_frames = []
         all_frames_gt = []
         for frame_idx in range(start, start + self.max_num_frames):
@@ -144,15 +146,15 @@ class FloatBallsVideoDatasetMoreData(Dataset):
             if self.normalize:
                 if self.no_color:
                     transform_list.append(transforms.Normalize((0.5), (0.5)))
-                else: 
+                else:
                     transform_list.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
-            img = transforms.Compose(transform_list)(img) 
+            img = transforms.Compose(transform_list)(img)
             if self.no_color:
                 img = img.repeat(3,1,1)
                 imgname_gt = self.gt_datapath + str(folder) + "/" + str(frame_idx)
                 imgpath_gt = imgname_gt + '.png'
                 img_gt = np.array(io.imread(imgpath_gt))
-                img_gt = transforms.Compose(transform_list)(img_gt) 
+                img_gt = transforms.Compose(transform_list)(img_gt)
                 all_frames_gt.append(img_gt)
             all_frames.append(img)
         result = torch.cat((torch.stack(all_frames,dim=0), torch.stack(all_frames_gt,dim=0)), dim=1) if self.no_color else torch.stack(all_frames,dim=0)
@@ -181,7 +183,7 @@ class FloatBallsVideoDataset(Dataset):
     def __getitem__(self,idx):
         folder = idx
         all_frames = []
-        all_frames_gt = []        
+        all_frames_gt = []
         for frame_idx in range(self.max_num_frames):
             imgname = self.datapath + str(folder) + "/" + str(frame_idx)
             imgpath = imgname + '.png'
@@ -190,21 +192,50 @@ class FloatBallsVideoDataset(Dataset):
             if self.normalize:
                 if self.no_color:
                     transform_list.append(transforms.Normalize((0.5), (0.5)))
-                else: 
+                else:
                     transform_list.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
-            img = transforms.Compose(transform_list)(img) 
+            img = transforms.Compose(transform_list)(img)
             if self.no_color:
                 img = img.repeat(3,1,1)
             if self.no_color or not (self.gt_datapath == self.datapath):
                 imgname_gt = self.gt_datapath + str(folder) + "/" + str(frame_idx)
                 imgpath_gt = imgname_gt + '.png'
                 img_gt = np.array(io.imread(imgpath_gt))
-                img_gt = transforms.Compose(transform_list)(img_gt) 
+                img_gt = transforms.Compose(transform_list)(img_gt)
                 all_frames_gt.append(img_gt)
             all_frames.append(img)
         result = torch.cat((torch.stack(all_frames,dim=0), torch.stack(all_frames_gt,dim=0)), dim=1) if (self.no_color or not self.gt_datapath == self.datapath) else torch.stack(all_frames,dim=0)
         return result
 
+
+class MultiScaleMNIST(Dataset):
+
+    def __init__(self,datapath,data_type='train',max_num_samples=50000, crop_sz=320, down_sz=64, max_num_frames=10, normalize = False):
+        super().__init__()
+        path = os.path.join(datapath, data_type)
+        self.max_num_samples = max_num_samples
+        self.max_num_frames = max_num_frames
+
+        self.sequences = list(sorted(Path(path).glob("*")))
+        self.anns = [json.load(p.joinpath("annotations.json").open()) for p in self.sequences]
+
+    def __len__(self):
+        return len(self.sequences)
+
+    @staticmethod
+    def load_image(path):
+        return np.array(Image.open(path))
+
+    def __getitem__(self, index):
+        sequence = self.sequences[index]
+
+        images_files = list(sorted(sequence.glob("*.jpg")))
+        imgs = np.stack(self.load_image(p) for p in images_files).transpose(0, 3, 1, 2)
+
+        imgs = imgs.astype(np.float) / 255.0
+        imgs = torch.from_numpy(imgs).float()
+
+        return imgs
 
 
 if __name__=='__main__':

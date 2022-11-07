@@ -7,7 +7,7 @@
 #
 
 ####################################################################################
-# Code is based on the IODINE (https://arxiv.org/pdf/1903.00450.pdf) implementation 
+# Code is based on the IODINE (https://arxiv.org/pdf/1903.00450.pdf) implementation
 # from https://github.com/MichaelKevinKelly/IODINE by Michael Kelly
 ####################################################################################
 
@@ -22,7 +22,7 @@ class RefineNetLSTM(torch.nn.Module):
 	def __init__(self, z_dim, channels_in):
 		super(RefineNetLSTM, self).__init__()
 		self.convnet = ConvNet(channels_in)
-		self.fc_in = torch.nn.Sequential(torch.nn.Linear(16384,128),torch.nn.ELU())
+		self.fc_in = torch.nn.Sequential(torch.nn.Linear(65536,128),torch.nn.ELU())
 		# Create a 2D-LSTM
 		self.lstm = LSTM2dCell(128+4*z_dim, 128)
 		self.fc_out = torch.nn.Linear(128,2*z_dim)
@@ -38,10 +38,10 @@ class RefineNetLSTM(torch.nn.Module):
 		return self.fc_out(h), h, c
 
 class ConvNet(torch.nn.Module):
-	
+
 	def __init__(self, channels_in):
 		super(ConvNet, self).__init__()
-	
+
 		self.model = torch.nn.Sequential(
 			torch.nn.Conv2d(channels_in,64,kernel_size=3,stride=1,padding=1),
 			torch.nn.ELU(),

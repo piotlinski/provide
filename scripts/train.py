@@ -7,7 +7,7 @@
 #
 
 ####################################################################################
-# Code is based on the IODINE (https://arxiv.org/pdf/1903.00450.pdf) implementation 
+# Code is based on the IODINE (https://arxiv.org/pdf/1903.00450.pdf) implementation
 # from https://github.com/MichaelKevinKelly/IODINE by Michael Kelly
 ####################################################################################
 
@@ -26,9 +26,8 @@ from sklearn.metrics.cluster import adjusted_rand_score
 from src.model import Model
 from src.networks.refine_net import RefineNetLSTM
 from src.networks.sbd import SBD
-from src.datasets.datasets import FloatBallsVideoDatasetMoreData,  ClevrerDatasetMoreData
-from src.utils.util import display_samples
-from src.utils.util import gif
+from src.datasets.datasets import FloatBallsVideoDatasetMoreData,  ClevrerDatasetMoreData, MultiScaleMNIST
+# from src.utils.util import gif
 from src.utils.util import adjusted_rand_index
 from src.utils.train_options import TrainOptions
 
@@ -81,10 +80,11 @@ if "bb" in opt.datapath:
 elif "clevrer" in opt.datapath:
     train_data = torch.utils.data.DataLoader(
                 ClevrerDatasetMoreData(datapath, max_num_samples=max_num_samples, down_sz=down_sz,max_num_frames= opt.max_num_frames, normalize = opt.normalize),
-                batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)   
+                batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 else:
-    print("wrong dataset")
-    raise SystemExit
+    train_data = torch.utils.data.DataLoader(
+                MultiScaleMNIST(datapath, max_num_samples=max_num_samples, down_sz=down_sz,max_num_frames= opt.max_num_frames, normalize = opt.normalize),
+                batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 
 ## Create refinement network, decoder, and (optionally) feature extractor
 ## 		Could speed up training by pre-computing squeezenet outputs since we just use this as a feature extractor
@@ -154,7 +154,7 @@ def train(model, dataloader, n_epochs=10, device='cpu', beta=10, gamma=0.1, psi=
     print("Total steps: ", total_steps)
     save_delta = total_steps % opt.save_latest_freq
     display_delta = total_steps % opt.display_freq
-    print_delta = total_steps % opt.print_freq 
+    print_delta = total_steps % opt.print_freq
 
     for epoch in range(start_epoch, n_epochs):
         epoch_start_time = time.time()
@@ -198,7 +198,7 @@ def train(model, dataloader, n_epochs=10, device='cpu', beta=10, gamma=0.1, psi=
 
             mse = torch.nn.functional.mse_loss(output_means, x)
 
-            ## Backwards Pass 
+            ## Backwards Pass
             optimizer.zero_grad()
             loss.backward(retain_graph=False)
             torch.nn.utils.clip_grad_norm_(v.parameters(), 5.0, norm_type=2)
@@ -209,7 +209,7 @@ def train(model, dataloader, n_epochs=10, device='cpu', beta=10, gamma=0.1, psi=
             optimizer.step()
             assert not v_module.has_nan(), 'Model has nan post-opt step'
 
-        
+
             ## Print and log outputs
             if i % opt.print_freq == 0 or ari == 0:
 
@@ -227,17 +227,17 @@ def train(model, dataloader, n_epochs=10, device='cpu', beta=10, gamma=0.1, psi=
                 c = 0
                 for k in range(K):
                     for c in range(3):
-                        single_mask_colors[:,:,k,c,:,:] = colors[k][c] 
-                ##DEBUGGING 
+                        single_mask_colors[:,:,k,c,:,:] = colors[k][c]
+                ##DEBUGGING
                 mask_image_debug = (single_mask_colors*single_mask).sum(dim=2)
                 grid_img = torchvision.utils.save_image(torch.flatten(mask_image_debug, end_dim = 1), save_path + 'images/'+'results_singel_masks_epoch_{}'.format(epoch) + '.png', nrow= opt.max_num_frames)
                 #if not opt.dataset == "clevrer":
                 gif_masks = torch.unbind(mask_image_debug, dim = 0)
                 gif_masks = torch.cat(gif_masks, dim = 2)
-                gif(save_path +'images/'+'gif_{}'.format(epoch) + '.png', gif_masks.mul(255).add_(0.5).clamp_(0, 255).permute(0,2,3,1).to('cpu', torch.uint8).detach().numpy())
+                # gif(save_path +'images/'+'gif_{}'.format(epoch) + '.png', gif_masks.mul(255).add_(0.5).clamp_(0, 255).permute(0,2,3,1).to('cpu', torch.uint8).detach().numpy())
                 new_mask = torch.round(100*mask_image_debug)/100
                 new_mask = (new_mask[:,:,0]*100 + new_mask[:,:,1]*10 + new_mask[:,:,2])
-                new_mask = torch.round(new_mask) 
+                new_mask = torch.round(new_mask)
                 new_mask = torch.flatten(new_mask, start_dim = 1)
                 new_mask = new_mask.detach().cpu().numpy()
 
@@ -249,11 +249,11 @@ def train(model, dataloader, n_epochs=10, device='cpu', beta=10, gamma=0.1, psi=
                 new_x = torch.unsqueeze(new_x, dim = 2)
                 ari = adjusted_rand_index(new_x, masks)
 
-    
+
             output_means = output_means[0]
 
 
-            if i % 50 == 0:    
+            if i % 50 == 0:
                 grid_img = torchvision.utils.save_image(output_means, save_path + 'images/'+'results_epoch_{}'.format(epoch) + '.png', nrow= opt.max_num_frames)
                 grid_img = torchvision.utils.save_image(x[0], save_path + 'images/'+'gt_epoch_{}'.format(epoch) + '.png', nrow= opt.max_num_frames)
                 if opt.no_color:
@@ -292,7 +292,7 @@ def train(model, dataloader, n_epochs=10, device='cpu', beta=10, gamma=0.1, psi=
                 v_module.save('latest', device)
                 v_module.save(str(epoch)+"_"+str(epoch_iter), device)
                 np.savetxt(iter_path, (epoch, epoch_iter), delimiter=',', fmt='%d')
-                
+
         # end of epoch
         iter_end_time = time.time()
         print('End of epoch %d / %d \t Time Taken: %d sec' %

@@ -23,7 +23,7 @@ from src.networks.refine_net import RefineNetLSTM
 from src.networks.sbd import SBD
 from src.datasets.datasets import ClevrerDataset, FloatBallsVideoDataset
 from src.utils.util import latent_walks
-from src.utils.util import gif
+# from src.utils.util import gif
 from src.utils.util import mkdir
 from src.utils.test_options import TestOptions
 from src.utils.util import adjusted_rand_index
@@ -31,7 +31,7 @@ from src.utils.util import adjusted_rand_index
 from PIL import ImageFile
 from PIL import Image
 from PIL import ImageFont
-from PIL import ImageDraw 
+from PIL import ImageDraw
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -81,7 +81,7 @@ else:
     results_dir+="K_"+ str(K)+"T_"+ str(T)+"number_of_frames_"+str(opt.max_num_frames)+"_datapath_"+datapath.replace("/","") +"/"
     mkdir(results_dir)
 
-# Add numbers of the batches that you want to visualize and do the latent walks on. 
+# Add numbers of the batches that you want to visualize and do the latent walks on.
 # Note: Creating visualization takes up a lot of GPU memory.
 batch_to_print = []
 batch_to_print_latent = []
@@ -93,7 +93,7 @@ if "bb" in opt.datapath:
 elif "clevrer" in opt.datapath:
     test_data = torch.utils.data.DataLoader(
                 ClevrerDataset(datapath, data_type = "test", max_num_samples=max_num_samples, down_sz=down_sz, max_num_frames= opt.max_num_frames + opt.predict_frames, normalize = opt.normalize, gt_datapath = opt.gt_datapath),
-                batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)   
+                batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 else:
     print("wrong dataset")
     raise SystemExit
@@ -162,7 +162,7 @@ def test(model, dataloader, device='cpu', beta=10, gamma=0.1, psi=1.0):
             gt = x
         N, F, C, H, W = x.shape
 
-        
+
         ## Forward pass
         loss, nll, div, entropy, mu_x, masks, neg_kl, z, h, ari, ari_no_bg = v.forward(x, gt)
         mse = 0.0
@@ -189,7 +189,7 @@ def test(model, dataloader, device='cpu', beta=10, gamma=0.1, psi=1.0):
             c = 0
             for k in range(K):
                 for c in range(3):
-                    single_mask_colors[:,:,k,c,:,:] = colors[k][c] 
+                    single_mask_colors[:,:,k,c,:,:] = colors[k][c]
 
             mask_image_debug = (single_mask_colors*masks).sum(dim=2)
 
@@ -208,14 +208,14 @@ def test(model, dataloader, device='cpu', beta=10, gamma=0.1, psi=1.0):
                 single_mus = torch.cat(single_mus, dim = 3)
                 final_gif = torch.cat([final_gif, single_mus], dim=3)
                 del mu_gif, single_mus
-            else: 
+            else:
                 no_sim_masks = mask_image_debug[:, :opt.max_num_frames]
                 sim_masks = mask_image_debug[:, opt.max_num_frames:]
                 no_sim_gt = gt[:, :opt.max_num_frames]
                 sim_gt = gt[:, opt.max_num_frames:]
                 new_sim_masks = []
                 new_sim_gt = []
-                for b in range(opt.batch_size): 
+                for b in range(opt.batch_size):
                     batch_masks = []
                     batch_gt = []
                     for sim_num in range(opt.predict_frames):
@@ -227,8 +227,8 @@ def test(model, dataloader, device='cpu', beta=10, gamma=0.1, psi=1.0):
                         draw = ImageDraw.Draw(im_gt)
                         draw.text((0, 0),"Ground truth",(255,255,255),font=font)
                         transform_list = [transforms.ToTensor()]
-                        im = transforms.Compose(transform_list)(im) 
-                        im_gt = transforms.Compose(transform_list)(im_gt) 
+                        im = transforms.Compose(transform_list)(im)
+                        im_gt = transforms.Compose(transform_list)(im_gt)
                         batch_masks.append(im.to(device))
                         batch_gt.append(im_gt.to(device))
                     new_sim_masks.append(torch.stack(batch_masks, dim =0))
@@ -243,7 +243,7 @@ def test(model, dataloader, device='cpu', beta=10, gamma=0.1, psi=1.0):
                 gif_gt = torch.cat(gif_gt, dim = 2)
                 final_gif = torch.cat([gif_masks,gif_gt], dim = 3)
                 del gif_gt, draw
-            gif(results_dir+'gif_{}'.format(i) + '.png', final_gif.mul(255).add_(0.5).clamp_(0, 255).permute(0,2,3,1).to('cpu', torch.uint8).detach().numpy())
+            # gif(results_dir+'gif_{}'.format(i) + '.png', final_gif.mul(255).add_(0.5).clamp_(0, 255).permute(0,2,3,1).to('cpu', torch.uint8).detach().numpy())
             del final_gif, gif_masks, gif_means
             if opt.predict_frames == 0:
                 Y = torch.zeros_like(masks)
@@ -271,7 +271,7 @@ def test(model, dataloader, device='cpu', beta=10, gamma=0.1, psi=1.0):
                 for batch in range(batch_size):
                     image = torch.cat([mask_image_debug[batch], gt[batch]], dim = 2)
                     grid_img = torchvision.utils.save_image(image, results_dir +'results_only_masks_{}_{}'.format(batch, i) + '.png', nrow= opt.max_num_frames + opt.predict_frames )
-                 
+
             del grid_img, gt, x, mask_image_debug, single_mask_colors
 
         # Printing the latent walks
@@ -280,17 +280,17 @@ def test(model, dataloader, device='cpu', beta=10, gamma=0.1, psi=1.0):
             print("Final shape XS and masks:", xs.shape, masks.shape)
             for j in range(K):
                 full_image = (xs[j] * masks[j]).sum(dim=2)
-                grid_img = torchvision.utils.save_image(torch.flatten(full_image, end_dim = 1), save_path + 'images/'+'results_latent_walk_{}_slot_{}'.format(i, j) + '.png', nrow = 7)   
+                grid_img = torchvision.utils.save_image(torch.flatten(full_image, end_dim = 1), save_path + 'images/'+'results_latent_walk_{}_slot_{}'.format(i, j) + '.png', nrow = 7)
                 del full_image
             grid_img = torchvision.utils.save_image(x[0], save_path + 'images/'+'latent_walk_gt_{}'.format(i) + '.png', nrow= opt.max_num_frames)
 
         del mu_x, masks, output_means, z, h
         torch.cuda.empty_cache()
-    if not opt.no_scores:    
+    if not opt.no_scores:
         print("ARI: ", torch.mean(torch.stack(ari_score, 0)))
         print("ARI without BG: ", torch.mean(torch.stack(ari_no_bg_score, 0)))
         print("MSE: ", torch.mean(torch.stack(mse_score, 0)))
-        
+
     print('Time Taken: %d sec' % (time.time() - epoch_start_time))
 
 ## Run training function
