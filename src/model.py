@@ -49,11 +49,11 @@ class Model(torch.nn.Module):
 		self.decoder = decoder
 		self.refine_net = refine_net
 		self.layer_norms = torch.nn.ModuleList([
-			torch.nn.LayerNorm((1,128,128),elementwise_affine=False),
-			torch.nn.LayerNorm((3,128,128),elementwise_affine=False),
-			torch.nn.LayerNorm((1,128,128),elementwise_affine=False),
+			torch.nn.LayerNorm((1,64,64),elementwise_affine=False),
+			torch.nn.LayerNorm((3,64,64),elementwise_affine=False),
+			torch.nn.LayerNorm((1,64,64),elementwise_affine=False),
 			torch.nn.LayerNorm((2*z_dim,),elementwise_affine=False),
-			torch.nn.LayerNorm((1,128,128),elementwise_affine=False)])
+			torch.nn.LayerNorm((1,64,64),elementwise_affine=False)])
 
 
 		self.feature_extractor = torch.nn.Sequential(
@@ -62,7 +62,7 @@ class Model(torch.nn.Module):
 			torch.nn.ELU(),
 			torch.nn.Conv2d(64,32,3,stride=1,padding=1),
 			torch.nn.ELU(),
-			torch.nn.ConvTranspose2d(32,16,3,stride=2,padding=1,output_padding=1),
+			torch.nn.Conv2d(32,16,3,stride=1,padding=1),
 			torch.nn.ELU())
 		for param in self.feature_extractor[0]:
 			param.requires_grad = False
@@ -192,8 +192,8 @@ class Model(torch.nn.Module):
 				## Potentially add additional features from pretrained model (scaled down to appropriate size)
 				x_resized = torch.nn.functional.interpolate(x,257) ## Upscale to desired input size for squeezenet
 				additional_features = self.feature_extractor(x_resized).unsqueeze(dim=1)
-				additional_features = additional_features.expand((N,K,16,128,128)).contiguous()
-				additional_features = additional_features.view((N*K,16,128,128))
+				additional_features = additional_features.expand((N,K,16,64,64)).contiguous()
+				additional_features = additional_features.view((N*K,16,64,64))
 				refine_inp['img'] = torch.cat((refine_inp['img'],additional_features),dim=1)
 
 				delta, h_vert, c_vert = self.refine_net(refine_inp, h_hor, c_hor, h_vert, c_vert)
@@ -264,8 +264,8 @@ class Model(torch.nn.Module):
 				## Potentially add additional features from pretrained model (scaled down to appropriate size)
 				x_resized = torch.nn.functional.interpolate(x,257) ## Upscale to desired input size for squeezenet
 				additional_features = self.feature_extractor(x_resized).unsqueeze(dim=1)
-				additional_features = additional_features.expand((N,K,16,128,128)).contiguous()
-				additional_features = additional_features.view((N*K,16,128,128))
+				additional_features = additional_features.expand((N,K,16,64,64)).contiguous()
+				additional_features = additional_features.view((N*K,16,64,64))
 				refine_inp['img'] = torch.cat((refine_inp['img'],additional_features),dim=1)
 
 				delta, h_vert, c_vert = self.refine_net(refine_inp, h_hor, c_hor, h_vert, c_vert)
@@ -379,7 +379,7 @@ class Model(torch.nn.Module):
 	Generates coordinate channels inputs for refinemet network
 	"""
 	def _create_meshgrid(self):
-		H,W = (128,128)
+		H,W = (64,64)
 		x_range = torch.linspace(-1.,1.,W)
 		y_range = torch.linspace(-1.,1.,H)
 		x_grid, y_grid = torch.meshgrid([x_range,y_range])

@@ -22,7 +22,7 @@ class RefineNetLSTM(torch.nn.Module):
 	def __init__(self, z_dim, channels_in):
 		super(RefineNetLSTM, self).__init__()
 		self.convnet = ConvNet(channels_in)
-		self.fc_in = torch.nn.Sequential(torch.nn.Linear(65536,128),torch.nn.ELU())
+		self.fc_in = torch.nn.Sequential(torch.nn.Linear(16384, 128),torch.nn.ELU())
 		# Create a 2D-LSTM
 		self.lstm = LSTM2dCell(128+4*z_dim, 128)
 		self.fc_out = torch.nn.Linear(128,2*z_dim)
