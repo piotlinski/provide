@@ -121,6 +121,7 @@ class Model(torch.nn.Module):
 		mu_z, logvar_z = mu_z.contiguous(), logvar_z.contiguous()
 		z_first = self._sample(mu_z,logvar_z) ## (N*K,z_dim)
 		r = 0
+		zs = []
 		for f in range(F):
 			x = img[f]
 			lmbda = lmbda_frames[f]
@@ -213,6 +214,7 @@ class Model(torch.nn.Module):
 			_x_hor = _x
 			final_masks.append(masks)
 			final_mu_x.append(mu_x)
+			zs.append(z.clone().detach())
 
 		with torch.no_grad():
 			for f_predict in range(F, F + self.opt.predict_frames):
@@ -279,6 +281,7 @@ class Model(torch.nn.Module):
 
 		final_masks = torch.stack(final_masks).permute(1,0,2,3,4,5)
 		final_mu_x = torch.stack(final_mu_x).permute(1,0,2,3,4,5)
+		zs = torch.stack(zs)
 		neg_kl = (1.+logvar_z-logvar_z.exp()-mu_z.pow(2))
 		neg_kl = neg_kl.view((N,K,)+neg_kl.shape[1:])
 
@@ -295,7 +298,7 @@ class Model(torch.nn.Module):
 			ari = []
 			ari_no_bg = []
 		z = self._sample(mu_z,logvar_z)
-		return total_loss, nll, div, flat_e, final_mu_x, final_masks, neg_kl, z, h_hor, ari, ari_no_bg
+		return total_loss, nll, div, flat_e, final_mu_x, final_masks, neg_kl, zs, h_hor, ari, ari_no_bg
 
 	"""
 	Generate inputs to refinement network
